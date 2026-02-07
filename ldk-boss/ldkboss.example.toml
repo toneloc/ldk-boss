@@ -1,0 +1,100 @@
+# LDKBoss Configuration
+# Copy this file to ldkboss.toml and edit the values below.
+
+[server]
+# LDK Server REST endpoint (host:port, no https:// prefix)
+base_url = "localhost:3002"
+# HMAC-SHA256 API key (hex string, found in <ldk-server-data>/api_key)
+api_key = "your_api_key_hex_here"
+# Path to LDK Server's TLS certificate (found in <ldk-server-data>/tls.crt)
+tls_cert_path = "/path/to/ldk-server/data/tls.crt"
+
+[general]
+# Path to LDKBoss's own SQLite database
+database_path = "ldkboss.db"
+# Logging level: error, warn, info, debug, trace
+log_level = "info"
+# Bitcoin network: bitcoin, testnet, signet, regtest
+network = "bitcoin"
+# Master enable/disable switch
+enabled = true
+# Dry-run mode: logs all decisions but executes no actions
+dry_run = false
+# Control loop interval in seconds (default: 600 = 10 minutes)
+loop_interval_secs = 600
+
+[autopilot]
+# Enable automatic channel opening
+enabled = true
+# Minimum channel size in satoshis
+min_channel_sats = 100000
+# Maximum channel size in satoshis (LN protocol max for non-wumbo)
+max_channel_sats = 16777215
+# On-chain reserve to always keep (satoshis)
+onchain_reserve_sats = 30000
+# Minimum on-chain % of total funds before opening channels
+min_onchain_percent = 10.0
+# If on-chain exceeds this %, open channels even in high-fee regime
+max_onchain_percent = 25.0
+# Whether channels should be publicly announced
+announce_channels = true
+# External node ranking API URL (leave empty for hardcoded list only)
+ranking_api_url = ""
+# Specific nodes to always consider as candidates (format: node_id@host:port)
+seed_nodes = []
+# Node IDs to never open channels with
+blacklist = []
+
+[fees]
+# Enable automatic fee adjustment
+enabled = true
+# Default base fee in millisatoshis (starting point before modifiers)
+default_base_msat = 1000
+# Default proportional fee in parts-per-million
+default_ppm = 100
+# Enable balance-based fee modulation (cheaper when outbound-heavy, expensive when inbound-heavy)
+balance_modder_enabled = true
+# Preferred bin size for balance modder (satoshis). Larger = less granular fees
+preferred_bin_size_sats = 200000
+# Enable price theory optimizer (explores fee points to maximize earnings)
+price_theory_enabled = true
+# Card lifetime in ticks (each tick = loop_interval_secs). Default: 288 = ~2 days at 10min ticks
+price_theory_card_lifetime_ticks = 288
+
+[rebalancer]
+# Enable circular rebalancing
+enabled = true
+# Probability of triggering per hourly check (0.0 to 1.0)
+trigger_probability = 0.5
+# Channels below this % spendable are rebalance destinations
+max_spendable_percent = 25.0
+# Gap to prevent source from becoming destination
+source_gap_percent = 2.5
+# Target spendable % for destinations after rebalance
+target_spendable_percent = 75.0
+# Maximum fee per rebalance in PPM
+max_fee_ppm = 1000
+# Maximum total fee budget per cycle (satoshis)
+max_total_fee_sats = 10000
+
+[judge]
+# DISABLED BY DEFAULT - must explicitly enable
+# Closes channels with underperforming peers
+enabled = false
+# Minimum channel age in days before judgment
+min_age_days = 90
+# Earnings evaluation window in days
+evaluation_window_days = 30
+# Estimated cost to reopen a channel (satoshis)
+estimated_reopen_cost_sats = 5000
+# Use cooperative close (true) or force close (false)
+cooperative_close = true
+
+[onchain_fees]
+# Provider for on-chain fee estimation: "mempool" or "none"
+provider = "mempool"
+# Mempool.space API URL
+mempool_api_url = "https://mempool.space/api"
+# Percentile thresholds for fee regime detection (CLBoss-style hysteresis)
+hi_to_lo_percentile = 17.0
+lo_to_hi_percentile = 23.0

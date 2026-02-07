@@ -1,0 +1,6 @@
+[submodule "clboss"]
+	path = clboss
+	url = https://github.com/ksedgwic/clboss.git
+[submodule "ldk-server"]
+	path = ldk-server
+	url = https://github.com/lightningdevkit/ldk-server.git

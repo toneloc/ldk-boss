@@ -1,0 +1,29 @@
+[package]
+name = "ldk-boss"
+version = "0.1.0"
+edition = "2021"
+description = "Autopilot daemon for LDK Server - ports CLBoss behavior to LDK"
+
+[[bin]]
+name = "ldk-boss"
+path = "src/main.rs"
+
+[dependencies]
+ldk-server-client = { path = "../ldk-server/ldk-server-client" }
+ldk-server-protos = { path = "../ldk-server/ldk-server-protos" }
+
+tokio = { version = "1", features = ["full"] }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+rusqlite = { version = "0.31", features = ["bundled"] }
+log = "0.4"
+env_logger = "0.11"
+reqwest = { version = "0.11", default-features = false, features = ["rustls-tls", "json"] }
+rand = "0.8"
+chrono = { version = "0.4", features = ["clock"] }
+anyhow = "1"
+async-trait = "0.1"
+
+[dev-dependencies]
+tempfile = "3"

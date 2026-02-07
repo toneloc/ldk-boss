@@ -1,0 +1,22 @@
+# Build artifacts
+target/
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Runtime
+*.db
+*.db-journal
+*.db-wal
+
+# Claude Code
+.claude/
