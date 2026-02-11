@@ -7,6 +7,7 @@ mod db;
 mod fees;
 mod judge;
 mod rebalancer;
+mod reconnector;
 mod scheduler;
 mod state;
 mod tracker;
@@ -159,7 +160,14 @@ pub async fn run_cycle(
     let node_state = state::NodeState::collect(client, db).await?;
 
     // Phase 2: Update trackers
-    tracker::update(db, client, &node_state).await?;
+    tracker::update(db, client, &node_state, config).await?;
+
+    // Phase 2.5: Reconnect offline peers
+    if config.reconnector.enabled {
+        if let Err(e) = reconnector::run(config, client, db, &node_state).await {
+            error!("Reconnector error: {:#}", e);
+        }
+    }
 
     // Phase 3: Fee management
     if config.fees.enabled {

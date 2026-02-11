@@ -46,6 +46,10 @@ pub trait LdkClient: Send + Sync {
         &self,
         request: Bolt11SendRequest,
     ) -> anyhow::Result<Bolt11SendResponse>;
+    async fn force_close_channel(
+        &self,
+        request: ForceCloseChannelRequest,
+    ) -> anyhow::Result<ForceCloseChannelResponse>;
 }
 
 /// Rate-limited, retrying wrapper around LdkServerClient.
@@ -81,9 +85,11 @@ impl LdkBossClient {
         })
     }
 
-    async fn rate_limit(&self) {
-        let _permit = self.rate_limiter.acquire().await.unwrap();
+    async fn rate_limit(&self) -> anyhow::Result<()> {
+        let _permit = self.rate_limiter.acquire().await
+            .map_err(|_| anyhow::anyhow!("Rate limiter semaphore closed"))?;
         sleep(Duration::from_millis(RATE_LIMIT_DELAY_MS)).await;
+        Ok(())
     }
 
     async fn with_retry<F, Fut, T>(&self, name: &str, f: F) -> anyhow::Result<T>
@@ -92,7 +98,7 @@ impl LdkBossClient {
         Fut: std::future::Future<Output = Result<T, ldk_server_client::error::LdkServerError>>,
     {
         for attempt in 0..MAX_RETRIES {
-            self.rate_limit().await;
+            self.rate_limit().await?;
             match f().await {
                 Ok(resp) => {
                     debug!("{}: success", name);
@@ -219,6 +225,16 @@ impl LdkClient for LdkBossClient {
         })
         .await
     }
+
+    async fn force_close_channel(
+        &self,
+        request: ForceCloseChannelRequest,
+    ) -> anyhow::Result<ForceCloseChannelResponse> {
+        self.with_retry("ForceCloseChannel", || {
+            self.inner.force_close_channel(request.clone())
+        })
+        .await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +257,7 @@ pub mod mock {
         pub open_channel_calls: Arc<Mutex<Vec<OpenChannelRequest>>>,
         pub close_channel_calls: Arc<Mutex<Vec<CloseChannelRequest>>>,
         pub connect_peer_calls: Arc<Mutex<Vec<ConnectPeerRequest>>>,
+        pub force_close_calls: Arc<Mutex<Vec<ForceCloseChannelRequest>>>,
     }
 
     impl MockLdkClient {
@@ -257,6 +274,7 @@ pub mod mock {
                 open_channel_calls: Arc::new(Mutex::new(Vec::new())),
                 close_channel_calls: Arc::new(Mutex::new(Vec::new())),
                 connect_peer_calls: Arc::new(Mutex::new(Vec::new())),
+                force_close_calls: Arc::new(Mutex::new(Vec::new())),
             }
         }
     }
@@ -333,6 +351,14 @@ pub mod mock {
             Ok(Bolt11SendResponse {
                 payment_id: "mock_payment_id".to_string(),
             })
+        }
+
+        async fn force_close_channel(
+            &self,
+            request: ForceCloseChannelRequest,
+        ) -> anyhow::Result<ForceCloseChannelResponse> {
+            self.force_close_calls.lock().unwrap().push(request);
+            Ok(ForceCloseChannelResponse {})
         }
     }
 }

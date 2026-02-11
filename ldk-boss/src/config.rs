@@ -15,6 +15,8 @@ pub struct Config {
     #[serde(default)]
     pub judge: JudgeConfig,
     #[serde(default)]
+    pub reconnector: ReconnectorConfig,
+    #[serde(default)]
     pub onchain_fees: OnchainFeesConfig,
 }
 
@@ -157,6 +159,13 @@ pub struct JudgeConfig {
     /// Use cooperative close (true) or force close (false)
     #[serde(default = "default_true")]
     pub cooperative_close: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReconnectorConfig {
+    /// Enable automatic peer reconnection
+    #[serde(default = "default_true")]
+    pub enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -341,6 +350,12 @@ impl Default for JudgeConfig {
     }
 }
 
+impl Default for ReconnectorConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
 impl Default for OnchainFeesConfig {
     fn default() -> Self {
         Self {
@@ -408,6 +423,32 @@ impl Config {
         {
             anyhow::bail!("max_spendable_percent must be between 0 and 100");
         }
+        // Price theory bounds
+        if self.fees.price_theory_card_lifetime_ticks == 0 {
+            anyhow::bail!("price_theory_card_lifetime_ticks must be > 0");
+        }
+        if self.fees.preferred_bin_size_sats == 0 {
+            anyhow::bail!("preferred_bin_size_sats must be > 0");
+        }
+
+        // Cross-field: onchain percentile ordering
+        if self.autopilot.min_onchain_percent >= self.autopilot.max_onchain_percent {
+            anyhow::bail!(
+                "min_onchain_percent ({}) must be less than max_onchain_percent ({})",
+                self.autopilot.min_onchain_percent,
+                self.autopilot.max_onchain_percent
+            );
+        }
+
+        // Cross-field: fee regime percentile ordering
+        if self.onchain_fees.hi_to_lo_percentile >= self.onchain_fees.lo_to_hi_percentile {
+            anyhow::bail!(
+                "hi_to_lo_percentile ({}) must be less than lo_to_hi_percentile ({})",
+                self.onchain_fees.hi_to_lo_percentile,
+                self.onchain_fees.lo_to_hi_percentile
+            );
+        }
+
         if !self.server.tls_cert_path.exists() {
             anyhow::bail!(
                 "TLS cert not found at: {}",
@@ -432,6 +473,7 @@ impl Config {
             fees: FeesConfig::default(),
             rebalancer: RebalancerConfig::default(),
             judge: JudgeConfig::default(),
+            reconnector: ReconnectorConfig::default(),
             onchain_fees: OnchainFeesConfig::default(),
         }
     }
@@ -512,6 +554,40 @@ mod tests {
         let mut config = make_valid_config();
         config.rebalancer.max_spendable_percent = 0.0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_validate_card_lifetime_zero() {
+        let mut config = make_valid_config();
+        config.fees.price_theory_card_lifetime_ticks = 0;
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("price_theory_card_lifetime_ticks"));
+    }
+
+    #[test]
+    fn test_validate_bin_size_zero() {
+        let mut config = make_valid_config();
+        config.fees.preferred_bin_size_sats = 0;
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("preferred_bin_size_sats"));
+    }
+
+    #[test]
+    fn test_validate_onchain_percent_ordering() {
+        let mut config = make_valid_config();
+        config.autopilot.min_onchain_percent = 30.0;
+        config.autopilot.max_onchain_percent = 20.0;
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("min_onchain_percent"));
+    }
+
+    #[test]
+    fn test_validate_fee_percentile_ordering() {
+        let mut config = make_valid_config();
+        config.onchain_fees.hi_to_lo_percentile = 25.0;
+        config.onchain_fees.lo_to_hi_percentile = 15.0;
+        let err = config.validate().unwrap_err();
+        assert!(err.to_string().contains("hi_to_lo_percentile"));
     }
 
     #[test]

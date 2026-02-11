@@ -3,7 +3,7 @@ use crate::config::Config;
 use crate::db::Database;
 use crate::judge::algo::CloseRecommendation;
 use crate::state::NodeState;
-use ldk_server_protos::api::CloseChannelRequest;
+use ldk_server_protos::api::{CloseChannelRequest, ForceCloseChannelRequest};
 use log::{error, info};
 
 /// Execute a channel closure based on judge recommendation.
@@ -59,11 +59,14 @@ pub async fn execute_closure(
             .await
             .map(|_| ())
     } else {
-        // This is a separate API method on the client
-        // For force close we'd need to add it to our client wrapper
-        // For now, log a warning and skip
-        error!("Judge: force close not yet implemented in client wrapper");
-        return Ok(());
+        client
+            .force_close_channel(ForceCloseChannelRequest {
+                user_channel_id: channel.user_channel_id.clone(),
+                counterparty_node_id: channel.counterparty_node_id.clone(),
+                force_close_reason: Some(recommendation.reason.clone()),
+            })
+            .await
+            .map(|_| ())
     };
 
     match result {

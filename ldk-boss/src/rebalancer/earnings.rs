@@ -230,8 +230,9 @@ async fn execute_rebalance(
         })
         .await?;
 
-    // We don't know the exact fee paid from the send response,
-    // but we capped it at max_fee_msat. Use max as upper bound.
-    // A more precise approach would check payment details afterward.
+    // NOTE: We record max_fee_msat as the fee paid because Bolt11SendResponse
+    // does not include the actual routing fee. This overstates costs slightly,
+    // which means the rebalancer is conservative with its fee budget.
+    // TODO: Query ListPayments after payment to get exact fee.
     Ok(max_fee_msat)
 }

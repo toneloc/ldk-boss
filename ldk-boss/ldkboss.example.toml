@@ -90,6 +90,10 @@ estimated_reopen_cost_sats = 5000
 # Use cooperative close (true) or force close (false)
 cooperative_close = true
 
+[reconnector]
+# Enable automatic peer reconnection (reconnects to peers with offline channels)
+enabled = true
+
 [onchain_fees]
 # Provider for on-chain fee estimation: "mempool" or "none"
 provider = "mempool"

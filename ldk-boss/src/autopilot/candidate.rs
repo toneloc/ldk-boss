@@ -22,7 +22,7 @@ pub enum CandidateSource {
 
 /// Well-known, highly-connected Lightning routing nodes.
 /// These serve as a fallback when no external ranking API is configured.
-const HARDCODED_NODES: &[(&str, &str)] = &[
+pub const HARDCODED_NODES: &[(&str, &str)] = &[
     // ACINQ
     (
         "03864ef025fde8fb587d989186ce6a4a186895ee44a926bfc370e2c366597a3f8f",
@@ -147,50 +147,23 @@ pub async fn get_candidates(
 }
 
 /// Find nodes that appear frequently in our forwarding history.
+///
+/// NOTE: Earnings-based candidates require peer address discovery
+/// (e.g., gossip graph access) which LDK Server doesn't expose yet.
+/// Until then, this returns empty. Candidates come from seed_nodes
+/// and hardcoded nodes instead.
 fn get_earnings_candidates(
-    db: &Database,
-    existing_peers: &HashSet<String>,
+    _db: &Database,
+    _existing_peers: &HashSet<String>,
 ) -> anyhow::Result<Vec<Candidate>> {
-    let conn = db.conn();
-    let mut candidates = Vec::new();
-
-    // Find nodes that appear in our forwarding history but aren't our peers
-    let mut stmt = conn.prepare(
-        "SELECT counterparty_node_id, SUM(fee_earned_msat) as total_earned \
-         FROM earnings \
-         GROUP BY counterparty_node_id \
-         HAVING total_earned > 0 \
-         ORDER BY total_earned DESC \
-         LIMIT 20",
-    )?;
-
-    let rows = stmt.query_map([], |row| {
-        Ok((
-            row.get::<_, String>(0)?,
-            row.get::<_, i64>(1)?,
-        ))
-    })?;
-
-    for row in rows {
-        let (node_id, earned) = row?;
-        if !existing_peers.contains(&node_id) {
-            candidates.push(Candidate {
-                node_id,
-                address: String::new(), // Will need to look up or skip
-                score: (earned as f64).sqrt() / 100.0, // Moderate priority
-                source: CandidateSource::Earnings,
-            });
-        }
-    }
-
-    Ok(candidates)
+    Ok(Vec::new())
 }
 
 fn is_blacklisted(config: &Config, node_id: &str) -> bool {
     config.autopilot.blacklist.iter().any(|b| b == node_id)
 }
 
-fn parse_node_address(s: &str) -> Option<(String, String)> {
+pub fn parse_node_address(s: &str) -> Option<(String, String)> {
     // Format: node_id@host:port
     let parts: Vec<&str> = s.splitn(2, '@').collect();
     if parts.len() == 2 {
@@ -201,9 +174,9 @@ fn parse_node_address(s: &str) -> Option<(String, String)> {
 }
 
 async fn fetch_external_candidates(_url: &str) -> anyhow::Result<Vec<Candidate>> {
-    // Placeholder for external API integration.
+    // External ranking API integration is not yet implemented.
     // Could integrate with 1ML, Amboss, or a custom ranking service.
-    // For now, return empty.
+    warn!("External ranking API is not yet implemented; ranking_api_url config is ignored");
     Ok(Vec::new())
 }
 

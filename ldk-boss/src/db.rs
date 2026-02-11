@@ -127,6 +127,14 @@ CREATE TABLE IF NOT EXISTS sync_state (
     value TEXT NOT NULL
 );
 
+-- Known peer addresses for reconnection
+CREATE TABLE IF NOT EXISTS peer_addresses (
+    node_id TEXT NOT NULL PRIMARY KEY,
+    address TEXT NOT NULL,
+    last_connected_at REAL,
+    source TEXT NOT NULL DEFAULT 'autopilot'
+);
+
 -- General run state
 CREATE TABLE IF NOT EXISTS run_state (
     key TEXT PRIMARY KEY,
@@ -164,6 +172,7 @@ mod tests {
             "earnings",
             "judge_closures",
             "onchain_fee_samples",
+            "peer_addresses",
             "price_theory_cards",
             "price_theory_center",
             "rebalance_costs",

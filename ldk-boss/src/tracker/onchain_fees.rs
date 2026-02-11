@@ -1,3 +1,4 @@
+use crate::config::OnchainFeesConfig;
 use crate::db::Database;
 use log::{debug, warn};
 use serde::Deserialize;
@@ -20,10 +21,15 @@ struct MempoolFees {
     minimum_fee: f64,
 }
 
-/// Poll mempool.space for current fee estimates and record a sample.
-pub async fn update(db: &Database) -> anyhow::Result<()> {
-    // Try to fetch from mempool.space
-    let feerate = match fetch_mempool_fee().await {
+/// Poll fee estimator for current fee estimates and record a sample.
+pub async fn update(db: &Database, config: &OnchainFeesConfig) -> anyhow::Result<()> {
+    if config.provider == "none" {
+        debug!("On-chain fee provider disabled");
+        return Ok(());
+    }
+
+    // Try to fetch from mempool.space (or configured URL)
+    let feerate = match fetch_mempool_fee(&config.mempool_api_url).await {
         Ok(fee) => fee,
         Err(e) => {
             warn!("Failed to fetch on-chain fees from mempool.space: {}", e);
@@ -145,13 +151,15 @@ fn insert_sample(db: &Database, feerate: f64, sampled_at: f64) {
         .unwrap();
 }
 
-async fn fetch_mempool_fee() -> anyhow::Result<f64> {
+async fn fetch_mempool_fee(api_url: &str) -> anyhow::Result<f64> {
+    let url = format!("{}/v1/fees/recommended", api_url);
+
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
         .build()?;
 
     let resp: MempoolFees = client
-        .get("https://mempool.space/api/v1/fees/recommended")
+        .get(&url)
         .send()
         .await?
         .json()

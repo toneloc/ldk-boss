@@ -121,8 +121,20 @@ pub async fn execute_open(
                 resp.user_channel_id,
             );
 
-            // Record in audit trail
+            // Save peer address for reconnection
             let now = chrono::Utc::now().timestamp() as f64;
+            db.conn().execute(
+                "INSERT OR REPLACE INTO peer_addresses \
+                 (node_id, address, last_connected_at, source) \
+                 VALUES (?1, ?2, ?3, 'autopilot')",
+                rusqlite::params![
+                    open.candidate.node_id,
+                    open.candidate.address,
+                    now,
+                ],
+            )?;
+
+            // Record in audit trail
             db.conn().execute(
                 "INSERT INTO autopilot_opens \
                  (channel_id, counterparty_node_id, amount_sats, opened_at, reason) \
