@@ -340,6 +340,8 @@ mod tests {
             price_theory_enabled: true,
             price_theory_card_lifetime_ticks: 5, // Short for testing
             price_theory_max_step: 2,
+            competitor_fee_enabled: true,
+            size_modder_enabled: true,
         }
     }
 

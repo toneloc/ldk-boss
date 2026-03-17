@@ -116,6 +116,12 @@ pub struct FeesConfig {
     /// Max price step from center
     #[serde(default = "default_price_step")]
     pub price_theory_max_step: i32,
+    /// Use competitor fee monitoring to set market-relative base fees
+    #[serde(default = "default_true")]
+    pub competitor_fee_enabled: bool,
+    /// Enable size-based fee modulation (charge more if we're larger than competitors)
+    #[serde(default = "default_true")]
+    pub size_modder_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -320,6 +326,8 @@ impl Default for FeesConfig {
             price_theory_enabled: true,
             price_theory_card_lifetime_ticks: default_card_lifetime(),
             price_theory_max_step: default_price_step(),
+            competitor_fee_enabled: true,
+            size_modder_enabled: true,
         }
     }
 }

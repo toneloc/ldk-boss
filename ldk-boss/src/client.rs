@@ -50,6 +50,17 @@ pub trait LdkClient: Send + Sync {
         &self,
         request: ForceCloseChannelRequest,
     ) -> anyhow::Result<ForceCloseChannelResponse>;
+    async fn graph_list_nodes(&self) -> anyhow::Result<GraphListNodesResponse>;
+    async fn graph_get_node(
+        &self,
+        request: GraphGetNodeRequest,
+    ) -> anyhow::Result<GraphGetNodeResponse>;
+    async fn graph_list_channels(&self) -> anyhow::Result<GraphListChannelsResponse>;
+    async fn graph_get_channel(
+        &self,
+        request: GraphGetChannelRequest,
+    ) -> anyhow::Result<GraphGetChannelResponse>;
+    async fn list_peers(&self) -> anyhow::Result<ListPeersResponse>;
 }
 
 /// Rate-limited, retrying wrapper around LdkServerClient.
@@ -235,6 +246,49 @@ impl LdkClient for LdkBossClient {
         })
         .await
     }
+
+    async fn graph_list_nodes(&self) -> anyhow::Result<GraphListNodesResponse> {
+        self.with_retry("GraphListNodes", || {
+            self.inner
+                .graph_list_nodes(GraphListNodesRequest {})
+        })
+        .await
+    }
+
+    async fn graph_get_node(
+        &self,
+        request: GraphGetNodeRequest,
+    ) -> anyhow::Result<GraphGetNodeResponse> {
+        self.with_retry("GraphGetNode", || {
+            self.inner.graph_get_node(request.clone())
+        })
+        .await
+    }
+
+    async fn graph_list_channels(&self) -> anyhow::Result<GraphListChannelsResponse> {
+        self.with_retry("GraphListChannels", || {
+            self.inner
+                .graph_list_channels(GraphListChannelsRequest {})
+        })
+        .await
+    }
+
+    async fn graph_get_channel(
+        &self,
+        request: GraphGetChannelRequest,
+    ) -> anyhow::Result<GraphGetChannelResponse> {
+        self.with_retry("GraphGetChannel", || {
+            self.inner.graph_get_channel(request.clone())
+        })
+        .await
+    }
+
+    async fn list_peers(&self) -> anyhow::Result<ListPeersResponse> {
+        self.with_retry("ListPeers", || {
+            self.inner.list_peers(ListPeersRequest {})
+        })
+        .await
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +298,7 @@ impl LdkClient for LdkBossClient {
 #[cfg(test)]
 pub mod mock {
     use super::*;
+    use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
     /// Mock LDK client that returns preset responses and records API calls.
@@ -252,6 +307,13 @@ pub mod mock {
         pub balances: GetBalancesResponse,
         pub channels: ListChannelsResponse,
         pub forwarded_payments: ListForwardedPaymentsResponse,
+        // Graph data
+        pub graph_nodes: GraphListNodesResponse,
+        pub graph_node_details: HashMap<String, GraphGetNodeResponse>,
+        pub graph_channels: GraphListChannelsResponse,
+        pub graph_channel_details: HashMap<u64, GraphGetChannelResponse>,
+        // Peer data
+        pub peers: ListPeersResponse,
         // Call recorders
         pub update_config_calls: Arc<Mutex<Vec<UpdateChannelConfigRequest>>>,
         pub open_channel_calls: Arc<Mutex<Vec<OpenChannelRequest>>>,
@@ -270,6 +332,11 @@ pub mod mock {
                 balances: GetBalancesResponse::default(),
                 channels: ListChannelsResponse::default(),
                 forwarded_payments: ListForwardedPaymentsResponse::default(),
+                graph_nodes: GraphListNodesResponse::default(),
+                graph_node_details: HashMap::new(),
+                graph_channels: GraphListChannelsResponse::default(),
+                graph_channel_details: HashMap::new(),
+                peers: ListPeersResponse::default(),
                 update_config_calls: Arc::new(Mutex::new(Vec::new())),
                 open_channel_calls: Arc::new(Mutex::new(Vec::new())),
                 close_channel_calls: Arc::new(Mutex::new(Vec::new())),
@@ -359,6 +426,40 @@ pub mod mock {
         ) -> anyhow::Result<ForceCloseChannelResponse> {
             self.force_close_calls.lock().unwrap().push(request);
             Ok(ForceCloseChannelResponse {})
+        }
+
+        async fn graph_list_nodes(&self) -> anyhow::Result<GraphListNodesResponse> {
+            Ok(self.graph_nodes.clone())
+        }
+
+        async fn graph_get_node(
+            &self,
+            request: GraphGetNodeRequest,
+        ) -> anyhow::Result<GraphGetNodeResponse> {
+            Ok(self
+                .graph_node_details
+                .get(&request.node_id)
+                .cloned()
+                .unwrap_or_default())
+        }
+
+        async fn graph_list_channels(&self) -> anyhow::Result<GraphListChannelsResponse> {
+            Ok(self.graph_channels.clone())
+        }
+
+        async fn graph_get_channel(
+            &self,
+            request: GraphGetChannelRequest,
+        ) -> anyhow::Result<GraphGetChannelResponse> {
+            Ok(self
+                .graph_channel_details
+                .get(&request.short_channel_id)
+                .cloned()
+                .unwrap_or_default())
+        }
+
+        async fn list_peers(&self) -> anyhow::Result<ListPeersResponse> {
+            Ok(self.peers.clone())
         }
     }
 }

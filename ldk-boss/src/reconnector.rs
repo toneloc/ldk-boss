@@ -10,8 +10,12 @@ use std::collections::HashSet;
 /// Reconnect to peers that have channels but appear offline.
 ///
 /// Runs every cycle (reconnecting is cheap and important for routing).
-/// Looks for channels where is_channel_ready=true but is_usable=false,
-/// which indicates the peer is disconnected.
+///
+/// Uses two data sources to determine disconnected peers:
+/// 1. Channel state: is_channel_ready=true but is_usable=false
+/// 2. ListPeers API: is_connected=false (authoritative, when available)
+///
+/// Also updates the peer_addresses DB with fresh addresses from ListPeers.
 pub async fn run(
     config: &Config,
     client: &(impl LdkClient + Sync),
@@ -21,13 +25,48 @@ pub async fn run(
     // Seed known addresses from config and hardcoded nodes (idempotent)
     seed_addresses(config, db)?;
 
-    // Find peers with ready-but-not-usable channels (likely disconnected)
-    let disconnected_peers: HashSet<String> = state
+    // Fetch live peer data from ListPeers API and update address cache
+    let live_peers = match client.list_peers().await {
+        Ok(resp) => {
+            update_addresses_from_peers(db, &resp.peers);
+            resp.peers
+        }
+        Err(e) => {
+            debug!("Reconnector: ListPeers failed ({}), falling back to channel state", e);
+            Vec::new()
+        }
+    };
+
+    // Build set of peers that have channels
+    let channel_peers: HashSet<String> = state
         .channels
         .iter()
-        .filter(|ch| ch.is_channel_ready && !ch.is_usable)
+        .filter(|ch| ch.is_channel_ready)
         .map(|ch| ch.counterparty_node_id.clone())
         .collect();
+
+    // Determine disconnected peers using the best available data
+    let disconnected_peers: HashSet<String> = if !live_peers.is_empty() {
+        // Authoritative: use ListPeers is_connected field
+        let connected_set: HashSet<String> = live_peers
+            .iter()
+            .filter(|p| p.is_connected)
+            .map(|p| p.node_id.clone())
+            .collect();
+        channel_peers
+            .iter()
+            .filter(|peer_id| !connected_set.contains(*peer_id))
+            .cloned()
+            .collect()
+    } else {
+        // Fallback: infer from channel state (is_channel_ready && !is_usable)
+        state
+            .channels
+            .iter()
+            .filter(|ch| ch.is_channel_ready && !ch.is_usable)
+            .map(|ch| ch.counterparty_node_id.clone())
+            .collect()
+    };
 
     if disconnected_peers.is_empty() {
         debug!("Reconnector: all peers connected");
@@ -42,7 +81,7 @@ pub async fn run(
     let conn = db.conn();
 
     for peer_id in &disconnected_peers {
-        // Look up address
+        // Look up address (may have been refreshed by update_addresses_from_peers)
         let address: Option<String> = conn
             .query_row(
                 "SELECT address FROM peer_addresses WHERE node_id = ?1",
@@ -97,6 +136,21 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+/// Update the peer_addresses DB with fresh addresses from ListPeers.
+fn update_addresses_from_peers(db: &Database, peers: &[ldk_server_protos::types::Peer]) {
+    let conn = db.conn();
+    for peer in peers {
+        if peer.address.is_empty() {
+            continue;
+        }
+        let _ = conn.execute(
+            "INSERT INTO peer_addresses (node_id, address, source) VALUES (?1, ?2, 'listpeers') \
+             ON CONFLICT(node_id) DO UPDATE SET address = ?2",
+            rusqlite::params![peer.node_id, peer.address],
+        );
+    }
 }
 
 /// Seed the peer_addresses table from config seed_nodes and hardcoded nodes.

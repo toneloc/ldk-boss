@@ -1,6 +1,8 @@
 pub mod balance_modder;
+pub mod competitor;
 pub mod price_theory;
 pub mod setter;
+pub mod size_modder;
 
 use crate::client::LdkClient;
 use crate::config::Config;
@@ -28,11 +30,36 @@ pub async fn run(
 
     info!("Fee management: evaluating {} usable channels", usable_channels.len());
 
+    let own_node_id = &state.node_info.node_id;
+    let own_capacity_sats = state.total_channel_capacity_sats();
+
     for channel in &usable_channels {
         let channel_value_sats = channel.channel_value_sats;
         if channel_value_sats == 0 {
             continue;
         }
+
+        // Phase 0: Competitor fee baseline (market-relative base fees)
+        let (base_ppm, base_base_msat) = if config.fees.competitor_fee_enabled {
+            match competitor::get_competitor_fees(
+                client,
+                &channel.counterparty_node_id,
+                own_node_id,
+            )
+            .await
+            {
+                Some(cf) => {
+                    debug!(
+                        "Fee management: competitor baseline for {}: {}ppm, {}msat",
+                        channel.counterparty_node_id, cf.median_ppm, cf.median_base_msat
+                    );
+                    (cf.median_ppm, cf.median_base_msat)
+                }
+                None => (config.fees.default_ppm, config.fees.default_base_msat),
+            }
+        } else {
+            (config.fees.default_ppm, config.fees.default_base_msat)
+        };
 
         // Compute balance ratio: our outbound / total
         let our_balance_ratio = channel.outbound_capacity_msat as f64
@@ -56,15 +83,28 @@ pub async fn run(
             1.0
         };
 
-        let combined_mult = balance_mult * price_mult;
+        // Phase 3: Size-based modifier (relative capacity vs competitors)
+        let size_mult = if config.fees.size_modder_enabled {
+            size_modder::get_size_modifier(
+                client,
+                &channel.counterparty_node_id,
+                own_node_id,
+                own_capacity_sats,
+            )
+            .await
+            .unwrap_or(1.0)
+        } else {
+            1.0
+        };
 
-        // Compute final fees
-        let base_msat = ((config.fees.default_base_msat as f64) * combined_mult) as u32;
-        let ppm = ((config.fees.default_ppm as f64) * combined_mult) as u32;
+        let combined_mult = balance_mult * price_mult * size_mult;
+
+        // Compute final fees using competitor baseline (or config default)
+        let base_msat = ((base_base_msat as f64) * combined_mult) as u32;
+        let ppm = ((base_ppm as f64) * combined_mult) as u32;
 
         // Clamp to hard limits
-        let ppm = ppm.max(ABS_MIN_FEE_PPM).min(ABS_MAX_FEE_PPM);
-        let base_msat = base_msat.max(0);
+        let ppm = ppm.clamp(ABS_MIN_FEE_PPM, ABS_MAX_FEE_PPM);
 
         // Apply if different from current
         setter::apply_if_changed(

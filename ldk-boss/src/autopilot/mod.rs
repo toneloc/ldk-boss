@@ -1,5 +1,6 @@
 pub mod candidate;
 pub mod decider;
+pub mod distance;
 pub mod opener;
 
 use crate::client::LdkClient;
@@ -36,7 +37,7 @@ pub async fn run(
         .map(|c| c.counterparty_node_id.clone())
         .collect();
 
-    let candidates = candidate::get_candidates(config, db, &existing_peers).await?;
+    let candidates = candidate::get_candidates(config, client, db, &existing_peers).await?;
 
     if candidates.is_empty() {
         info!("Autopilot: no suitable candidates found");

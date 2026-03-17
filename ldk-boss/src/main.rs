@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+mod advisor;
 mod autopilot;
 mod client;
 mod config;
@@ -40,6 +41,12 @@ enum Commands {
     RunOnce,
     /// Print current status from the database
     Status,
+    /// Print advisory recommendations without executing anything
+    Advise {
+        /// Output as JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
 }
 
 #[tokio::main]
@@ -75,6 +82,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Daemon => run_daemon(config, client, db).await,
         Commands::RunOnce => run_once(config, client, db).await,
         Commands::Status => print_status(db),
+        Commands::Advise { json } => run_advise(config, client, db, json).await,
     }
 }
 
@@ -195,6 +203,24 @@ pub async fn run_cycle(
         if let Err(e) = judge::run(config, client, db, &node_state).await {
             error!("Judge error: {:#}", e);
         }
+    }
+
+    Ok(())
+}
+
+async fn run_advise(
+    config: Arc<Config>,
+    client: impl LdkClient,
+    db: db::Database,
+    json: bool,
+) -> anyhow::Result<()> {
+    let node_state = state::NodeState::collect(&client, &db).await?;
+    let advisory = advisor::collect(&config, &client, &db, &node_state).await?;
+
+    if json {
+        advisory.print_json();
+    } else {
+        advisory.print_text();
     }
 
     Ok(())
