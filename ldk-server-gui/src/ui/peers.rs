@@ -1,15 +1,19 @@
 use eframe::egui;
 
 use crate::app::LdkServerApp;
-use crate::ui::truncate_id;
 
 pub fn render(ui: &mut egui::Ui, app: &mut LdkServerApp) {
 	ui.heading("Peers");
 	ui.add_space(5.0);
 
-	if ui.button("Refresh").clicked() {
-		app.fetch_peers();
-	}
+	ui.horizontal(|ui| {
+		if ui.button("Refresh").clicked() {
+			app.fetch_peers();
+		}
+		if ui.button("Connect Peer").clicked() {
+			app.state.show_connect_peer_dialog = true;
+		}
+	});
 
 	ui.add_space(10.0);
 
@@ -30,7 +34,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut LdkServerApp) {
 					for peer in &resp.peers {
 						ui.horizontal(|ui| {
 							ui.label(
-								egui::RichText::new(truncate_id(&peer.node_id, 8, 4)).monospace(),
+								egui::RichText::new(&peer.node_id).monospace(),
 							);
 							if ui.small_button("Copy").clicked() {
 								ui.output_mut(|o| o.copied_text = peer.node_id.clone());

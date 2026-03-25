@@ -90,7 +90,7 @@ pub fn render(ui: &mut Ui, app: &mut LdkServerApp) {
 							});
 
 							// Capacity
-							ui.label(format!("{} sats", format_sats(ch.channel_value_sats)));
+							ui.label(format_sats(ch.channel_value_sats));
 
 							// Outbound capacity
 							ui.label(format_msat(ch.outbound_capacity_msat));

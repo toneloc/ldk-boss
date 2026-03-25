@@ -108,7 +108,7 @@ fn render_channels_section(ui: &mut egui::Ui, app: &mut LdkServerApp) {
 
 						if let Some(cap) = ch.capacity_sats {
 							ui.label("Capacity:");
-							ui.label(format!("{} sats", crate::ui::format_sats(cap)));
+							ui.label(format!("{}", crate::ui::format_sats(cap)));
 							ui.end_row();
 						}
 

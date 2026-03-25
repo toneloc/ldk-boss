@@ -136,12 +136,12 @@ fn render_history(ui: &mut Ui, app: &mut LdkServerApp) {
 				ui,
 				|ui| {
 					ui.label("Total Balance:");
-					ui.label(format!("{} sats", format_sats(balances.total_onchain_balance_sats)));
+					ui.label(format_sats(balances.total_onchain_balance_sats));
 					ui.end_row();
 
 					ui.label("Spendable:");
 					ui.label(format!(
-						"{} sats",
+						"{}",
 						format_sats(balances.spendable_onchain_balance_sats)
 					));
 					ui.end_row();
@@ -149,7 +149,7 @@ fn render_history(ui: &mut Ui, app: &mut LdkServerApp) {
 					if balances.total_anchor_channels_reserve_sats > 0 {
 						ui.label("Anchor Reserve:");
 						ui.label(format!(
-							"{} sats",
+							"{}",
 							format_sats(balances.total_anchor_channels_reserve_sats)
 						));
 						ui.end_row();
@@ -213,13 +213,13 @@ fn render_pending_sweep(
 		BalanceType::PendingBroadcast(b) => {
 			ui.horizontal(|ui| {
 				ui.colored_label(egui::Color32::YELLOW, "Pending Broadcast");
-				ui.label(format!("{} sats", format_sats(b.amount_satoshis)));
+				ui.label(format_sats(b.amount_satoshis));
 			});
 		},
 		BalanceType::BroadcastAwaitingConfirmation(b) => {
 			ui.horizontal(|ui| {
 				ui.colored_label(egui::Color32::YELLOW, "Awaiting Confirmation");
-				ui.label(format!("{} sats", format_sats(b.amount_satoshis)));
+				ui.label(format_sats(b.amount_satoshis));
 			});
 			ui.horizontal(|ui| {
 				ui.label("TXID:");
@@ -233,7 +233,7 @@ fn render_pending_sweep(
 			ui.horizontal(|ui| {
 				ui.colored_label(egui::Color32::GREEN, "Awaiting Threshold");
 				ui.label(format!(
-					"{} sats (height {})",
+					"{} (height {})",
 					format_sats(b.amount_satoshis),
 					b.confirmation_height
 				));
@@ -319,7 +319,7 @@ fn render_history_table(ui: &mut Ui, app: &mut LdkServerApp) {
 
 							// Amount
 							if let Some(amount) = payment.amount_msat {
-								ui.label(format!("{} sats", format_sats(amount / 1000)));
+								ui.label(format_sats(amount / 1000));
 							} else {
 								ui.label("-");
 							}
